@@ -9,10 +9,12 @@ import java.io.IOException;
 import java.io.InputStreamReader;
 import java.lang.reflect.Field;
 import java.nio.charset.Charset;
+import java.security.MessageDigest;
 import java.util.Properties;
 
 import javax.swing.JOptionPane;
 
+import org.apache.commons.codec.binary.Hex;
 import org.apache.commons.lang.StringUtils;
 import org.apache.http.HttpResponse;
 import org.apache.http.client.ClientProtocolException;
@@ -33,6 +35,7 @@ public class SSARefresh
     private String password = "38777b2ef1cda076e3a59f70c3d790c0";
     private String exe = "Shadowsocks.exe";
     private String config = "gui-config.json";
+    private String isEncoded = "true";
     
     public static void main(String[] args) throws Exception
     {
@@ -40,6 +43,13 @@ public class SSARefresh
         {
             SSARefresh instance = new SSARefresh();
             instance.init();
+            if(instance.isEncoded.equals("false"))
+            {
+                byte[] bytesOfMessage = instance.password.getBytes("UTF-8");
+                MessageDigest md = MessageDigest.getInstance("MD5");
+                byte[] thedigest = md.digest(bytesOfMessage);
+                instance.password = new String(Hex.encodeHex(thedigest));
+            }
             String fileContent = instance.readJsonFile();
             JSONObject fileJson = JSONObject.fromObject(fileContent);
             JSONObject json = fileJson.getJSONArray("configs").getJSONObject(0);
