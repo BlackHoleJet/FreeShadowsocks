@@ -7,7 +7,7 @@ public class SSConfig
     String exe = "Shadowsocks.exe";
     String config = "gui-config.json";
     String isEncoded = "true";
-    String host = "http://www.ss-link.com";
+    String host = "https://www.ss-link.com";
     
     public void setEmail(String email)
     {

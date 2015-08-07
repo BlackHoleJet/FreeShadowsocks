@@ -21,6 +21,7 @@ import net.sf.json.JSONObject;
 
 import org.apache.commons.codec.binary.Hex;
 import org.apache.commons.lang.StringUtils;
+import org.apache.log4j.Logger;
 import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
 import org.jsoup.select.Elements;
@@ -33,7 +34,6 @@ import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.util.Assert;
 import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.util.MultiValueMap;
-import org.springframework.web.client.ResourceAccessException;
 import org.springframework.web.client.RestOperations;
 import org.springframework.web.client.RestTemplate;
 import org.springframework.web.util.UriComponentsBuilder;
@@ -48,6 +48,7 @@ public class ProxyWatcherThread extends Thread
     private final int retryInterval = 60*1000;
     private final int errorRetryInterval = 3000;
     private final Object wt = new Object();
+    private Logger logger = Logger.getLogger(this.getClass().getName());
     
     public void startMonitor() throws IllegalArgumentException, IllegalAccessException, NoSuchAlgorithmException, IOException, InterruptedException
     {
@@ -65,7 +66,9 @@ public class ProxyWatcherThread extends Thread
         solver.start();
         synchronized (solver)
         {
+            logger.info("waiting for PasswordSolver");
             solver.wait();
+            logger.info("PasswordSolver done, start proxy checking");
         }
         this.start();
     }
@@ -123,23 +126,31 @@ public class ProxyWatcherThread extends Thread
             try
             {
                 ResponseEntity<String> result = proxyClient.exchange("http://www.baidu.com", HttpMethod.GET, null, String.class);
-                if (result.getStatusCode().equals(200))
-                    ;
+                if (result.getStatusCode().value() != 200)
+                    throw new RuntimeException("request to baidu not return 200");
                 retry = 0;
+                logger.info("request through proxy ok.");
                 sleep(retryInterval);
             } catch (Exception e)
             {
                 try
                 {
+                    logger.error(e.getMessage(), e);
                     ++retry;
                     if(retry >= 3)
                     {
                         synchronized (wt)
                         {
+                            logger.info("notify PasswordSolver");
                             wt.notify();
                         }
+                        synchronized (solver)
+                        {
+                            logger.info("proxy checking waiting for PasswordSolver");
+                            solver.wait();
+                            logger.info("PasswordSolver finished, proxy checking awake");
+                        }
                         retry = 0;
-                        sleep(retryInterval);
                     }
                     else
                         sleep(errorRetryInterval);
@@ -168,12 +179,16 @@ public class ProxyWatcherThread extends Thread
             {
                 try
                 {
+                    logger.info("PasswordSolver thread start working...");
                     JSONObject fileJson = JSONObject.fromObject(fileContent);
                     JSONObject json = fileJson.getJSONArray("configs").getJSONObject(0);
                     String server = json.getString("server");
+                    logger.info("server="+server);
                     if (StringUtils.isBlank(server))
                         throw new RuntimeException("解析配置文件出错");
+                    logger.info("PasswordSolver thread try to get password");
                     String pwd = getFreePassword(server);
+                    logger.info("pwd="+pwd);
                     if (pwd == null)
                         throw new RuntimeException("密码获取错误");
                     json.put("password", pwd);
@@ -182,17 +197,21 @@ public class ProxyWatcherThread extends Thread
                     killShadowsocks();
                     Thread.sleep(100);
                     Runtime.getRuntime().exec(config.getExe());
-                    ckeckTask();
+                    checkTask();
                     synchronized (this)
                     {
+                        logger.info("notify proxy checking thread");
                         notify();
                     }
                     synchronized (wt)
                     {
+                        logger.info("PasswordSolver wait for awake");
                         wt.wait();
+                        logger.info("PasswordSolver awake");
                     }
                 } catch (Exception e)
                 {
+                    logger.error(e.getMessage(), e);
                     try
                     {
                         sleep(retryInterval);
@@ -281,6 +300,7 @@ public class ProxyWatcherThread extends Thread
                 }
             }
             Assert.notNull(cookie, "获取Cookie失败");
+            logger.info("cookie="+cookie);
             return cookie;
         }
         
@@ -300,7 +320,7 @@ public class ProxyWatcherThread extends Thread
             Runtime.getRuntime().exec(cmd);
         }
         
-        public void ckeckTask() throws IOException
+        public void checkTask() throws IOException
         {
             String cmd = "tasklist /FO CSV /FI \"IMAGENAME eq " + config.getExe() + "\"";
             Process process = Runtime.getRuntime().exec(cmd);
