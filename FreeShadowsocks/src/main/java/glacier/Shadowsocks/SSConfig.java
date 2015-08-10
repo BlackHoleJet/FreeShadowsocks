@@ -2,7 +2,7 @@ package glacier.Shadowsocks;
 
 public class SSConfig
 {
-    String email = "fonswanefon@gmai.com";
+    String email = "fonswanefon@gmail.com";
     String password = "38777b2ef1cda076e3a59f70c3d790c0";
     String exe = "Shadowsocks.exe";
     String config = "gui-config.json";

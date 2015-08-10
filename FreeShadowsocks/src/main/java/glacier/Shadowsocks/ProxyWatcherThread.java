@@ -6,6 +6,7 @@ import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileWriter;
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.lang.reflect.Field;
 import java.net.InetSocketAddress;
@@ -77,7 +78,10 @@ public class ProxyWatcherThread extends Thread
     
     private void init(SSConfig config) throws IOException, IllegalArgumentException, IllegalAccessException, NoSuchAlgorithmException
     {
-        BufferedReader br = new BufferedReader(new InputStreamReader(this.getClass().getResourceAsStream("config.properties"), Charset.forName("utf8")));
+        InputStream is = this.getClass().getResourceAsStream("config.properties");
+        if(is == null)
+            return;
+        BufferedReader br = new BufferedReader(new InputStreamReader(is, Charset.forName("utf8")));
         Properties p = new Properties();
         p.load(br);
         Field[] fields = config.getClass().getDeclaredFields();
