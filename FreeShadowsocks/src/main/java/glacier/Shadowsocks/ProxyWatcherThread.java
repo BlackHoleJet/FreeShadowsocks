@@ -125,6 +125,7 @@ public class ProxyWatcherThread extends Thread
         {
             try
             {
+                logger.info("trying request through proxy");
                 ResponseEntity<String> result = proxyClient.exchange("http://www.baidu.com", HttpMethod.GET, null, String.class);
                 if (result.getStatusCode().value() != 200)
                     throw new RuntimeException("request to baidu not return 200");

@@ -1,5 +1,8 @@
 package glacier.Shadowsocks;
 
+import it.sauronsoftware.junique.AlreadyLockedException;
+import it.sauronsoftware.junique.JUnique;
+
 import org.apache.log4j.Logger;
 
 public class SSARefresh
@@ -8,8 +11,17 @@ public class SSARefresh
     
     public static void main(String[] args) throws Exception
     {
-        ProxyWatcherThread executor = new ProxyWatcherThread();
-        executor.startMonitor();
-        logger.info("start monitor...");
+        String appName = "shadowsocks_auto_refresher";
+        boolean alreadyRunning;
+        try {
+            JUnique.acquireLock(appName);
+            alreadyRunning = false;
+        } catch (AlreadyLockedException e) {
+            alreadyRunning = true;
+        }
+        if (!alreadyRunning) {
+            ProxyWatcherThread executor = new ProxyWatcherThread();
+            executor.startMonitor();
+        }
     }
 }
