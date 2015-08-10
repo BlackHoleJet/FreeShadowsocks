@@ -48,11 +48,12 @@ public class ProxyWatcherThread extends Thread
     private int retry = 0;
     private final int retryInterval = 60*1000;
     private final int errorRetryInterval = 3000;
-    private final Object wt = new Object();
+    private final Object proxyChecking = new Object();
     private Logger logger = Logger.getLogger(this.getClass().getName());
     
     public void startMonitor() throws IllegalArgumentException, IllegalAccessException, NoSuchAlgorithmException, IOException, InterruptedException
     {
+        logger.info(System.getProperty("os.name"));
         init(config);
         fileContent = readJsonFile(config.getConfig());
         solver = new PasswordSolver(fileContent);
@@ -132,7 +133,6 @@ public class ProxyWatcherThread extends Thread
         {
             try
             {
-                logger.info("trying request through proxy");
                 ResponseEntity<String> result = proxyClient.exchange("http://www.baidu.com", HttpMethod.GET, null, String.class);
                 if (result.getStatusCode().value() != 200)
                     throw new RuntimeException("request to baidu not return 200");
@@ -147,10 +147,10 @@ public class ProxyWatcherThread extends Thread
                     ++retry;
                     if(retry >= 3)
                     {
-                        synchronized (wt)
+                        synchronized (proxyChecking)
                         {
                             logger.info("notify PasswordSolver");
-                            wt.notify();
+                            proxyChecking.notify();
                         }
                         synchronized (solver)
                         {
@@ -162,8 +162,10 @@ public class ProxyWatcherThread extends Thread
                     }
                     else
                         sleep(errorRetryInterval);
-                } catch (InterruptedException e1)
+                } catch (InterruptedException Interrupted)
                 {
+                    solver.interrupt();
+                    break;
                 }
             }            
         }
@@ -173,6 +175,7 @@ public class ProxyWatcherThread extends Thread
     public class PasswordSolver extends Thread
     {
         private RestOperations restClient = new RestTemplate();
+        private String server;
         private String fileContent = null;
         
         public PasswordSolver(String fileConfig)
@@ -191,15 +194,16 @@ public class ProxyWatcherThread extends Thread
                     logger.info("PasswordSolver thread start working...");
                     JSONObject fileJson = JSONObject.fromObject(fileContent);
                     JSONObject json = fileJson.getJSONArray("configs").getJSONObject(0);
-                    String server = json.getString("server");
+                    server = json.getString("server");
                     logger.info("server="+server);
                     if (StringUtils.isBlank(server))
                         throw new RuntimeException("解析配置文件出错");
                     logger.info("PasswordSolver thread try to get password");
-                    String pwd = getFreePassword(server);
+                    String pwd = getFreePassword();
                     logger.info("pwd="+pwd);
                     if (pwd == null)
                         throw new RuntimeException("密码获取错误");
+                    json.put("server", server);
                     json.put("password", pwd);
                     fileContent = fileJson.toString();
                     writeJsonFile();
@@ -212,10 +216,10 @@ public class ProxyWatcherThread extends Thread
                         logger.info("notify proxy checking thread");
                         notify();
                     }
-                    synchronized (wt)
+                    synchronized (proxyChecking)
                     {
                         logger.info("PasswordSolver wait for awake");
-                        wt.wait();
+                        proxyChecking.wait();
                         logger.info("PasswordSolver awake");
                     }
                 } catch (Exception e)
@@ -224,15 +228,16 @@ public class ProxyWatcherThread extends Thread
                     try
                     {
                         sleep(retryInterval);
-                    } catch (InterruptedException e1)
+                    } catch (InterruptedException Interrupted)
                     {
+                        break;
                     }
                 }
                 
             }
         }
         
-        public String getFreePassword(String server) throws Exception
+        public String getFreePassword() throws Exception
         {
             String content = getServerInfo();
             Document document = Jsoup.parse(content);
@@ -247,7 +252,14 @@ public class ProxyWatcherThread extends Thread
                         return tds.get(j + 2).text();
                 }
             }
-            return null;
+            if(trs.size() == 0)
+                return null;
+            Elements tds = trs.get(1).select("td");
+            if(tds.size() == 0)
+                return null;
+            server = tds.get(1).text();
+            return tds.get(3).text();
+            
         }
         
         private String getServerInfo() throws Exception
