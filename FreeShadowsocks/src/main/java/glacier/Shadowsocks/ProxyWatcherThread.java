@@ -164,6 +164,7 @@ public class ProxyWatcherThread extends Thread
                         sleep(errorRetryInterval);
                 } catch (InterruptedException Interrupted)
                 {
+                    logger.info("proxyChecking Interrupted!");
                     solver.interrupt();
                     break;
                 }
@@ -230,6 +231,7 @@ public class ProxyWatcherThread extends Thread
                         sleep(retryInterval);
                     } catch (InterruptedException Interrupted)
                     {
+                        logger.info("PasswordSolver Interrupted!");
                         break;
                     }
                 }
