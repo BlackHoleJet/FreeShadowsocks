@@ -61,6 +61,8 @@ public class ProxyWatcherThread extends Thread
         int localPort = getLocalPort(fileJson);
         Proxy proxy= new Proxy(Type.HTTP, new InetSocketAddress("localhost", localPort));
         requestFactory.setProxy(proxy);
+        requestFactory.setConnectTimeout(10000);
+        requestFactory.setReadTimeout(10000);
         proxyClient = new RestTemplate(requestFactory);
         
         solver.start();
@@ -121,6 +123,7 @@ public class ProxyWatcherThread extends Thread
     @Override
     public void run()
     {
+        setName("proxyChecking");
         while (true)
         {
             try
@@ -176,6 +179,7 @@ public class ProxyWatcherThread extends Thread
         @Override
         public void run()
         {
+            setName("PasswordSolver");
             while (true)
             {
                 try
@@ -196,7 +200,7 @@ public class ProxyWatcherThread extends Thread
                     fileContent = fileJson.toString();
                     writeJsonFile();
                     killShadowsocks();
-                    Thread.sleep(100);
+                    Thread.sleep(1000);
                     Runtime.getRuntime().exec(config.getExe());
                     checkTask();
                     synchronized (this)
